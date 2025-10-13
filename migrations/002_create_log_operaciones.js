@@ -5,8 +5,8 @@ exports.up = function(knex) {
   table.timestamp('datetime_evento').defaultTo(knex.fn.now());
   table.json('json_evento').notNullable();
   table.text('mensaje');
-  table.string('ipv4', 15);
-  table.string('ipv6', 39);
+  table.string('ipv4', 200);
+  table.string('ipv6', 200);
   table.text('user_agent');
   table.enu('nivel_log', ['debug', 'info', 'warn', 'error']).defaultTo('info');
   table.timestamp('fecha_creacion').defaultTo(knex.fn.now());
