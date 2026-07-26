@@ -12,6 +12,7 @@ module.exports = {
     poolMin: parseInt(process.env.DB_POOL_MIN) || 2,
     poolMax: parseInt(process.env.DB_POOL_MAX) || 10
   },
+  apiKeyPublic: process.env.API_KEY_PUBLIC,
   apiSecret: process.env.API_SECRET,
   corsOrigin: process.env.CORS_ORIGIN || '*'
 };

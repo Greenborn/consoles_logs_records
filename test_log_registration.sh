@@ -1,9 +1,8 @@
 #!/bin/bash
 # Script para probar el endpoint de registro de log
 
-API_URL="http://localhost:5600/api/console-log"
+API_URL="https://debug.greenborn.com.ar/api/console-log"
 API_KEY="demo_api_key"
-
 curl -X POST "$API_URL" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
