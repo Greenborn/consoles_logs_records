@@ -116,6 +116,12 @@ echo "[INFO] Checkout a rama $BRANCH..."
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
+CHOWN_USER="{RUN_AS}"
+if [ -n "$CHOWN_USER" ]; then
+  echo "[INFO] Asignando permisos a $CHOWN_USER:$CHOWN_USER..."
+  chown -R "$CHOWN_USER":"$CHOWN_USER" "$DEPLOY_PATH"
+fi
+
 echo "[INFO] Instalando dependencias npm..."
 $SUDO npm install
 
@@ -132,6 +138,7 @@ REMOTE_SCRIPT="${REMOTE_SCRIPT//\{BRANCH\}/$BRANCH}"
 REMOTE_SCRIPT="${REMOTE_SCRIPT//\{DEPLOY_PATH\}/$DEPLOY_PATH}"
 REMOTE_SCRIPT="${REMOTE_SCRIPT//\{PM2_NAME\}/$PM2_NAME}"
 REMOTE_SCRIPT="${REMOTE_SCRIPT//\{SUDO\}/$SUDO}"
+REMOTE_SCRIPT="${REMOTE_SCRIPT//\{RUN_AS\}/$RUN_AS}"
 
 # --- Ejecutar ---
 log "Conectando a $USER@$HOST:$PORT ..."

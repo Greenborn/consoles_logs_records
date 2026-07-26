@@ -88,10 +88,15 @@ CREATE TABLE log_operaciones (
 ## API Endpoints
 
 ### Autenticación
-Todas las rutas protegidas requieren header:
-```
-Authorization: Bearer {api_key}
-```
+El servicio implementa dos esquemas de autenticación:
+
+1. **API Key de aplicación** — `Authorization: Bearer {api_key}`
+   - La `api_key` se valida contra la tabla `aplicaciones_registradas`.
+   - Usada por endpoints públicos de registro de logs.
+
+2. **API Secret interno** — `Authorization: Bearer {API_SECRET}`
+   - El secreto se valida contra la variable de entorno `API_SECRET`.
+   - Usada por endpoints privados de administración y consulta.
 
 ### POST /api/console-log
 Registra un evento de console log.
@@ -140,6 +145,109 @@ Registra un evento de console log.
 }
 ```
 
+### GET /health
+Health check del servicio. No requiere autenticación.
+
+**Response 200:**
+```json
+{
+    "status": "ok",
+    "timestamp": "2024-10-13T10:30:00.000Z"
+}
+```
+
+### GET /api/applications/:id_aplicacion
+Obtiene los detalles de una aplicación registrada.
+
+**Headers requeridos:**
+- `Authorization: Bearer {API_SECRET}`
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "data": {
+        "id": 1,
+        "id_aplicacion": "mi-app",
+        "nombre_aplicacion": "Mi Aplicación",
+        "descripcion": "Descripción de la aplicación",
+        "activa": true,
+        "fecha_creacion": "2024-10-13T10:30:00.000Z"
+    }
+}
+```
+
+**Response 401:**
+```json
+{
+    "success": false,
+    "error": "API Key inválida o ausente"
+}
+```
+
+**Response 404:**
+```json
+{
+    "success": false,
+    "error": "Aplicación no encontrada"
+}
+```
+
+### GET /api/applications/:id_aplicacion/errors
+Obtiene los errores registrados para una aplicación, paginados de más reciente a más antiguo.
+
+**Headers requeridos:**
+- `Authorization: Bearer {API_SECRET}`
+
+**Query params:**
+- `page` (opcional, default: 1) — Número de página
+- `limit` (opcional, default: 50, max: 500) — Registros por página
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "id": 1,
+            "id_aplicacion": "mi-app",
+            "nivel_log": "error",
+            "json_evento": {
+                "mensaje": "Error crítico",
+                "modulo": "auth",
+                "usuario_id": "12345",
+                "accion": "login_attempt"
+            },
+            "ipv4": "192.168.1.1",
+            "user_agent": "axios/1.7.0",
+            "datetime_evento": "2024-10-13T10:30:00.000Z"
+        }
+    ],
+    "pagination": {
+        "page": 1,
+        "limit": 50,
+        "total": 150,
+        "totalPages": 3
+    }
+}
+```
+
+**Response 401:**
+```json
+{
+    "success": false,
+    "error": "API Key inválida o ausente"
+}
+```
+
+**Response 404:**
+```json
+{
+    "success": false,
+    "error": "Aplicación no encontrada"
+}
+```
+
 
 ## Estructura del Proyecto
 
@@ -153,7 +261,8 @@ consoles_logs_records/
 │   │   ├── logsController.js    # Controlador de logs
 │   │   └── appsController.js    # Controlador de aplicaciones
 │   ├── middleware/
-│   │   ├── auth.js              # Middleware de autenticación
+│   │   ├── auth.js              # Middleware de autenticación (api_key)
+│   │   ├── privateAuth.js       # Middleware de autenticación (API_SECRET)
 │   │   ├── validation.js        # Middleware de validación
 │   │   └── errorHandler.js      # Manejo de errores
 │   ├── models/
