@@ -2,6 +2,8 @@ const { isIPv4, isIPv6 } = require('net');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const LogOperacion = require('../models/LogOperacion');
 const db = require('../config/database');
 
@@ -122,52 +124,80 @@ exports.getPM2ErrorLogs = async (req, res) => {
       }
     }
 
-    let pm2Processes;
+    let pm2Processes = [];
     try {
       const { stdout } = await execFileAsync('pm2', ['jlist']);
       pm2Processes = JSON.parse(stdout);
       if (!Array.isArray(pm2Processes)) pm2Processes = [];
     } catch {
-      return res.status(502).json({ success: false, error: 'Error al consultar PM2', details: 'Asegúrate de que PM2 esté instalado y ejecutándose' });
+      pm2Processes = [];
     }
 
+    const pm2LogDir = path.join(os.homedir(), '.pm2', 'logs');
     const result = [];
 
     for (const processName of pm2Names) {
       const processEntry = { process: processName, error: null, output: null };
 
-      const matched = pm2Processes.find(p => p.name === processName);
-      if (!matched) {
-        processEntry.error = `Proceso '${processName}' no encontrado en PM2`;
-        result.push(processEntry);
-        continue;
-      }
+      const matched = pm2Processes.find(p => p.name === processName || (p.pm2_env && p.pm2_env.name === processName));
 
-      const logPaths = [
-        { type: 'error', path: matched.pm2_env && matched.pm2_env.pm_err_log_path },
-        { type: 'output', path: matched.pm2_env && matched.pm2_env.pm_out_log_path }
-      ];
+      if (matched) {
+        const candidatePaths = [
+          { type: 'error', path: matched.pm2_env && matched.pm2_env.pm_err_log_path },
+          { type: 'output', path: matched.pm2_env && matched.pm2_env.pm_out_log_path }
+        ];
 
-      for (const { type, path: logPath } of logPaths) {
-        if (!logPath) {
-          processEntry[type] = { error: `Ruta de log ${type} no disponible en PM2` };
+        for (const { type, path: logPath } of candidatePaths) {
+          if (!logPath) {
+            processEntry[type] = { error: `Ruta de log ${type} no disponible en PM2` };
+            continue;
+          }
+          try {
+            const stat = await fs.promises.stat(logPath);
+            const { stdout } = await execFileAsync('tail', ['-n', String(lines), logPath]);
+            const contentLines = stdout.split('\n').filter(l => l.length > 0);
+            processEntry[type] = { path: logPath, size: stat.size, lines: contentLines.length, content: stdout };
+          } catch (fileErr) {
+            processEntry[type] = { path: logPath, error: fileErr.message };
+          }
+        }
+      } else {
+        processEntry._pm2NotFound = true;
+        processEntry.error = { source: 'fallback', pathPrefix: processName };
+        processEntry.output = { source: 'fallback', pathPrefix: processName };
+
+        let logFiles;
+        try {
+          logFiles = await fs.promises.readdir(pm2LogDir);
+        } catch {
+          processEntry.error = { source: 'fallback', error: `Directorio '${pm2LogDir}' no encontrado` };
+          processEntry.output = { source: 'fallback', error: `Directorio '${pm2LogDir}' no encontrado` };
+          result.push(processEntry);
           continue;
         }
 
-        try {
-          const stat = await fs.promises.stat(logPath);
-          const { stdout } = await execFileAsync('tail', ['-n', String(lines), logPath]);
-          const contentLines = stdout.split('\n').filter(l => l.length > 0);
+        const prefixPattern = `${processName}-`;
+        const errorFiles = logFiles.filter(f => f.startsWith(prefixPattern) && f.includes('-error') && f.endsWith('.log')).sort();
+        const outputFiles = logFiles.filter(f => f.startsWith(prefixPattern) && f.includes('-out') && f.endsWith('.log')).sort();
 
-          processEntry[type] = {
-            path: logPath,
-            size: stat.size,
-            lines: contentLines.length,
-            content: stdout
-          };
-        } catch (fileErr) {
-          processEntry[type] = { path: logPath, error: fileErr.message };
-        }
+        const readLog = async (files, type) => {
+          if (files.length === 0) {
+            return { source: 'fallback', error: `No se encontró archivo de log ${type} para '${processName}'` };
+          }
+          const logFile = files[0];
+          const logPath = path.join(pm2LogDir, logFile);
+          try {
+            const stat = await fs.promises.stat(logPath);
+            const { stdout } = await execFileAsync('tail', ['-n', String(lines), logPath]);
+            const contentLines = stdout.split('\n').filter(l => l.length > 0);
+            return { source: 'fallback', path: logPath, size: stat.size, lines: contentLines.length, content: stdout };
+          } catch (fileErr) {
+            return { source: 'fallback', path: logPath, error: fileErr.message };
+          }
+        };
+
+        processEntry.error = await readLog(errorFiles, 'error');
+        processEntry.output = await readLog(outputFiles, 'output');
       }
 
       result.push(processEntry);
