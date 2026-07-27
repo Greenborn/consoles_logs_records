@@ -263,7 +263,7 @@ Obtiene los logs registrados para una aplicación con filtros y paginación.
 ```
 
 ### GET /api/applications/:id_aplicacion/pm2-logs
-Obtiene los últimos logs de error de PM2 para los procesos asociados a una aplicación.
+Obtiene los logs de PM2 (error y output) para los procesos asociados a una aplicación. Las rutas de los archivos de log se obtienen consultando a PM2 vía `pm2 jlist`.
 
 **Headers requeridos:**
 - `Authorization: Bearer {API_SECRET}`
@@ -281,17 +281,68 @@ Obtiene los últimos logs de error de PM2 para los procesos asociados a una apli
     "success": true,
     "data": [
         {
-            "process": "mi-app-pm2",
-            "files": [
-                {
-                    "file": "mi-app-pm2-error.log",
-                    "size": 45123,
-                    "lines": 50,
-                    "content": "[2025-07-27T10:00:00.000Z] Error: conexión rechazada\n..."
-                }
-            ]
+            "process": "mi-app",
+            "error": {
+                "path": "/home/user/.pm2/logs/mi-app-error-0.log",
+                "size": 45123,
+                "lines": 50,
+                "content": "Error: conexión rechazada\n..."
+            },
+            "output": {
+                "path": "/home/user/.pm2/logs/mi-app-out-0.log",
+                "size": 89123,
+                "lines": 50,
+                "content": "Server started on port 3000\n..."
+            }
         }
     ]
+}
+```
+
+**Response 200 (proceso sin logs):**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "process": "mi-app",
+            "error": "Proceso 'mi-app' no encontrado en PM2",
+            "output": null
+        }
+    ]
+}
+```
+
+**Response 400 (process name inválido):**
+```json
+{
+    "success": false,
+    "error": "El proceso 'inexistente' no está configurado en pm2_process_names de esta aplicación"
+}
+```
+
+**Response 401:**
+```json
+{
+    "success": false,
+    "error": "API Key inválida o ausente"
+}
+```
+
+**Response 404:**
+```json
+{
+    "success": false,
+    "error": "Aplicación no encontrada"
+}
+```
+
+**Response 502 (PM2 no disponible):**
+```json
+{
+    "success": false,
+    "error": "Error al consultar PM2",
+    "details": "Asegúrate de que PM2 esté instalado y ejecutándose"
 }
 ```
 
