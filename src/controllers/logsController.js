@@ -21,18 +21,18 @@ function pm2NormalizeName(name) {
   return name.replace(/_/g, '-');
 }
 
-const CANDIDATE_FILE_NAMES = (processName, type) => {
+const CANDIDATE_FILE_NAMES = (processName, suffix) => {
   const normalized = pm2NormalizeName(processName);
   const names = [
-    `${processName}-${type}.log`,
-    `${processName}-${type}-0.log`,
-    `${processName}-${type}-1.log`
+    `${processName}-${suffix}.log`,
+    `${processName}-${suffix}-0.log`,
+    `${processName}-${suffix}-1.log`
   ];
   if (normalized !== processName) {
     names.push(
-      `${normalized}-${type}.log`,
-      `${normalized}-${type}-0.log`,
-      `${normalized}-${type}-1.log`
+      `${normalized}-${suffix}.log`,
+      `${normalized}-${suffix}-0.log`,
+      `${normalized}-${suffix}-1.log`
     );
   }
   return names;
@@ -160,11 +160,11 @@ exports.getPM2ErrorLogs = async (req, res) => {
       const processEntry = { process: processName, error: null, output: null };
       const searchedPaths = [];
 
-      for (const type of ['error', 'output']) {
+      for (const { key, suffix } of [{ key: 'error', suffix: 'error' }, { key: 'output', suffix: 'out' }]) {
         let foundPath = null;
 
         for (const logDir of candidateDirs) {
-          const candidates = CANDIDATE_FILE_NAMES(processName, type);
+          const candidates = CANDIDATE_FILE_NAMES(processName, suffix);
           for (const fileName of candidates) {
             const logPath = path.join(logDir, fileName);
             searchedPaths.push(logPath);
@@ -186,15 +186,15 @@ exports.getPM2ErrorLogs = async (req, res) => {
             const stat = await fs.promises.stat(foundPath);
             const { stdout } = await execFileAsync('tail', ['-n', String(lines), foundPath]);
             const contentLines = stdout.split('\n').filter(l => l.length > 0);
-            processEntry[type] = { path: foundPath, size: stat.size, lines: contentLines.length, content: stdout };
+            processEntry[key] = { path: foundPath, size: stat.size, lines: contentLines.length, content: stdout };
           } catch (fileErr) {
             logger.error(`Error al leer log PM2`, { path: foundPath, error: fileErr.message });
-            processEntry[type] = { path: foundPath, error: fileErr.message };
+            processEntry[key] = { path: foundPath, error: fileErr.message };
           }
         } else {
-          logger.info(`PM2 log no encontrado`, { id_aplicacion, process: processName, type, searched: searchedPaths });
-          processEntry[type] = {
-            error: `No se encontró archivo de log ${type} para '${processName}'`,
+          logger.info(`PM2 log no encontrado`, { id_aplicacion, process: processName, type: key, searched: searchedPaths });
+          processEntry[key] = {
+            error: `No se encontró archivo de log ${key} para '${processName}'`,
             searched: searchedPaths.slice()
           };
         }
