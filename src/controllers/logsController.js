@@ -163,6 +163,7 @@ exports.getPM2ErrorLogs = async (req, res) => {
       for (const { key, suffix } of [{ key: 'error', suffix: 'error' }, { key: 'output', suffix: 'out' }]) {
         let foundPath = null;
         let needsSudo = false;
+        let lastAccessError = null;
 
         for (const logDir of candidateDirs) {
           const candidates = CANDIDATE_FILE_NAMES(processName, suffix);
@@ -173,8 +174,10 @@ exports.getPM2ErrorLogs = async (req, res) => {
               await fs.promises.access(logPath, fs.constants.R_OK);
               foundPath = logPath;
               needsSudo = false;
+              lastAccessError = null;
               break;
             } catch (accessErr) {
+              if (!lastAccessError) lastAccessError = { path: logPath, code: accessErr.code, message: accessErr.message };
               if (accessErr.code === 'EACCES') {
                 logger.warn(`PM2 log sin permisos de lectura`, { path: logPath, user: os.userInfo().username, code: 'EACCES' });
                 try {
@@ -182,6 +185,7 @@ exports.getPM2ErrorLogs = async (req, res) => {
                   if (!foundPath) {
                     foundPath = logPath;
                     needsSudo = true;
+                    lastAccessError = null;
                   }
                 } catch {
                 }
@@ -215,9 +219,12 @@ exports.getPM2ErrorLogs = async (req, res) => {
             processEntry[key] = { path: foundPath, error: fileErr.message };
           }
         } else {
-          logger.info(`PM2 log no encontrado`, { id_aplicacion, process: processName, type: key, searched: searchedPaths });
+          const reasonMsg = lastAccessError?.code === 'EACCES'
+            ? `Sin permisos de lectura en ${lastAccessError.path}`
+            : `No se encontró archivo de log ${key} para '${processName}'`;
+          logger.info(`PM2 log no encontrado`, { id_aplicacion, process: processName, type: key, reason: lastAccessError?.code, searched: searchedPaths });
           processEntry[key] = {
-            error: `No se encontró archivo de log ${key} para '${processName}'`,
+            error: reasonMsg,
             searched: searchedPaths.slice()
           };
         }
