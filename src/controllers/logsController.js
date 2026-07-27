@@ -17,11 +17,26 @@ function resolvePM2LogDirs() {
   ];
 }
 
-const CANDIDATE_FILE_NAMES = (processName, type) => [
-  `${processName}-${type}.log`,
-  `${processName}-${type}-0.log`,
-  `${processName}-${type}-1.log`
-];
+function pm2NormalizeName(name) {
+  return name.replace(/_/g, '-');
+}
+
+const CANDIDATE_FILE_NAMES = (processName, type) => {
+  const normalized = pm2NormalizeName(processName);
+  const names = [
+    `${processName}-${type}.log`,
+    `${processName}-${type}-0.log`,
+    `${processName}-${type}-1.log`
+  ];
+  if (normalized !== processName) {
+    names.push(
+      `${normalized}-${type}.log`,
+      `${normalized}-${type}-0.log`,
+      `${normalized}-${type}-1.log`
+    );
+  }
+  return names;
+};
 
 exports.createLog = async (req, res) => {
   try {
