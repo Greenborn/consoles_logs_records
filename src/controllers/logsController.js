@@ -177,7 +177,7 @@ exports.getPM2ErrorLogs = async (req, res) => {
               lastAccessError = null;
               break;
             } catch (accessErr) {
-              if (!lastAccessError) lastAccessError = { path: logPath, code: accessErr.code, message: accessErr.message };
+              if (!lastAccessError || accessErr.code === 'EACCES') lastAccessError = { path: logPath, code: accessErr.code, message: accessErr.message };
               if (accessErr.code === 'EACCES') {
                 logger.warn(`PM2 log sin permisos de lectura`, { path: logPath, user: os.userInfo().username, code: 'EACCES' });
                 try {
