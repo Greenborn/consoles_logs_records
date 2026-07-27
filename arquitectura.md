@@ -193,15 +193,25 @@ Obtiene los detalles de una aplicación registrada.
 }
 ```
 
-### GET /api/applications/:id_aplicacion/errors
-Obtiene los errores registrados para una aplicación, paginados de más reciente a más antiguo.
+### GET /api/applications/:id_aplicacion/logs
+Obtiene los logs registrados para una aplicación con filtros y paginación.
 
 **Headers requeridos:**
 - `Authorization: Bearer {API_SECRET}`
 
-**Query params:**
-- `page` (opcional, default: 1) — Número de página
-- `limit` (opcional, default: 50, max: 500) — Registros por página
+**Query params (todos opcionales):**
+
+| Parámetro | Tipo | Default | Descripción |
+|---|---|---|---|
+| `nivel` | string | — | Filtrar por nivel(es). Múltiples separados por coma (ej. `error,warn`) |
+| `fecha_desde` | ISO datetime | — | Filtro desde en `datetime_evento` (ej. `2025-01-01T00:00:00Z`) |
+| `fecha_hasta` | ISO datetime | — | Filtro hasta en `datetime_evento` |
+| `buscar` | string | — | Búsqueda textual parcial en `mensaje` |
+| `modulo` | string | — | Filtro exacto dentro de `json_evento.modulo` |
+| `usuario_id` | string | — | Filtro exacto dentro de `json_evento.usuario_id` |
+| `accion` | string | — | Filtro exacto dentro de `json_evento.accion` |
+| `limite` | int | 50 | Cantidad de registros por página (max 500) |
+| `offset` | int | 0 | Desplazamiento para paginación |
 
 **Response 200:**
 ```json
@@ -213,21 +223,23 @@ Obtiene los errores registrados para una aplicación, paginados de más reciente
             "id_aplicacion": "mi-app",
             "nivel_log": "error",
             "json_evento": {
-                "mensaje": "Error crítico",
+                "timestamp": "2024-10-13T10:30:00.000Z",
                 "modulo": "auth",
                 "usuario_id": "12345",
                 "accion": "login_attempt"
             },
+            "mensaje": "Error crítico",
             "ipv4": "192.168.1.1",
+            "ipv6": null,
             "user_agent": "axios/1.7.0",
-            "datetime_evento": "2024-10-13T10:30:00.000Z"
+            "datetime_evento": "2024-10-13T10:30:00.000Z",
+            "fecha_creacion": "2024-10-13T10:30:00.000Z"
         }
     ],
     "pagination": {
-        "page": 1,
-        "limit": 50,
         "total": 150,
-        "totalPages": 3
+        "limit": 50,
+        "offset": 0
     }
 }
 ```

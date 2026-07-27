@@ -23,10 +23,10 @@ exports.createLog = async (req, res) => {
   }
 };
 
-exports.getProjectErrors = async (req, res) => {
+exports.getProjectLogs = async (req, res) => {
   try {
     const { id_aplicacion } = req.params;
-    const { limite, offset } = req.query;
+    const { nivel, fecha_desde, fecha_hasta, buscar, modulo, usuario_id, accion, limite, offset } = req.query;
     const limit = Math.min(parseInt(limite) || 50, 500);
     const off = parseInt(offset) || 0;
 
@@ -35,16 +35,39 @@ exports.getProjectErrors = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Aplicación no encontrada' });
     }
 
+    const query = db('log_operaciones').where({ id_aplicacion });
+
+    if (nivel) {
+      const niveles = nivel.split(',').map(n => n.trim()).filter(Boolean);
+      if (niveles.length > 0) {
+        query.whereIn('nivel_log', niveles);
+      }
+    }
+
+    if (fecha_desde) {
+      query.where('datetime_evento', '>=', fecha_desde);
+    }
+    if (fecha_hasta) {
+      query.where('datetime_evento', '<=', fecha_hasta);
+    }
+    if (buscar) {
+      query.where('mensaje', 'like', `%${buscar}%`);
+    }
+    if (modulo) {
+      query.whereRaw('JSON_EXTRACT(json_evento, "$.modulo") = ?', [modulo]);
+    }
+    if (usuario_id) {
+      query.whereRaw('JSON_EXTRACT(json_evento, "$.usuario_id") = ?', [usuario_id]);
+    }
+    if (accion) {
+      query.whereRaw('JSON_EXTRACT(json_evento, "$.accion") = ?', [accion]);
+    }
+
+    const countQuery = query.clone();
+
     const [rows, total] = await Promise.all([
-      db('log_operaciones')
-        .where({ id_aplicacion, nivel_log: 'error' })
-        .orderBy('datetime_evento', 'desc')
-        .limit(limit)
-        .offset(off),
-      db('log_operaciones')
-        .where({ id_aplicacion, nivel_log: 'error' })
-        .count('* as total')
-        .first()
+      query.clone().orderBy('datetime_evento', 'desc').limit(limit).offset(off),
+      countQuery.count('* as total').first()
     ]);
 
     res.json({
@@ -57,6 +80,6 @@ exports.getProjectErrors = async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'Error al obtener errores', details: err.message });
+    res.status(500).json({ success: false, error: 'Error al obtener logs', details: err.message });
   }
 };
