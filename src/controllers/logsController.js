@@ -162,6 +162,7 @@ exports.getPM2ErrorLogs = async (req, res) => {
 
       for (const { key, suffix } of [{ key: 'error', suffix: 'error' }, { key: 'output', suffix: 'out' }]) {
         let foundPath = null;
+        let needsSudo = false;
 
         for (const logDir of candidateDirs) {
           const candidates = CANDIDATE_FILE_NAMES(processName, suffix);
@@ -171,10 +172,19 @@ exports.getPM2ErrorLogs = async (req, res) => {
             try {
               await fs.promises.access(logPath, fs.constants.R_OK);
               foundPath = logPath;
+              needsSudo = false;
               break;
             } catch (accessErr) {
               if (accessErr.code === 'EACCES') {
                 logger.warn(`PM2 log sin permisos de lectura`, { path: logPath, user: os.userInfo().username, code: 'EACCES' });
+                try {
+                  await execFileAsync('sudo', ['-n', 'test', '-f', logPath]);
+                  if (!foundPath) {
+                    foundPath = logPath;
+                    needsSudo = true;
+                  }
+                } catch {
+                }
               }
             }
           }
@@ -183,8 +193,21 @@ exports.getPM2ErrorLogs = async (req, res) => {
 
         if (foundPath) {
           try {
-            const stat = await fs.promises.stat(foundPath);
-            const { stdout } = await execFileAsync('tail', ['-n', String(lines), foundPath]);
+            let stdout;
+            let stat;
+            if (needsSudo) {
+              const [tailResult, statResult] = await Promise.all([
+                execFileAsync('sudo', ['-n', 'tail', '-n', String(lines), foundPath]),
+                execFileAsync('sudo', ['-n', 'stat', '--format=%s', foundPath])
+              ]);
+              stdout = tailResult.stdout;
+              stat = { size: parseInt(statResult.stdout.trim()) };
+            } else {
+              [stat, { stdout }] = await Promise.all([
+                fs.promises.stat(foundPath),
+                execFileAsync('tail', ['-n', String(lines), foundPath])
+              ]);
+            }
             const contentLines = stdout.split('\n').filter(l => l.length > 0);
             processEntry[key] = { path: foundPath, size: stat.size, lines: contentLines.length, content: stdout };
           } catch (fileErr) {
