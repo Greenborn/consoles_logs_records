@@ -6,8 +6,22 @@ const path = require('path');
 const os = require('os');
 const LogOperacion = require('../models/LogOperacion');
 const db = require('../config/database');
+const logger = require('../utils/logger');
 
 const execFileAsync = promisify(execFile);
+
+function resolvePM2LogDirs() {
+  return [
+    path.join(os.homedir(), '.pm2', 'logs'),
+    '/root/.pm2/logs'
+  ];
+}
+
+const CANDIDATE_FILE_NAMES = (processName, type) => [
+  `${processName}-${type}.log`,
+  `${processName}-${type}-0.log`,
+  `${processName}-${type}-1.log`
+];
 
 exports.createLog = async (req, res) => {
   try {
@@ -124,65 +138,52 @@ exports.getPM2ErrorLogs = async (req, res) => {
       }
     }
 
-    const candidateDirs = [
-      path.join(os.homedir(), '.pm2', 'logs'),
-      '/root/.pm2/logs'
-    ];
-
+    const candidateDirs = resolvePM2LogDirs();
     const result = [];
 
     for (const processName of pm2Names) {
       const processEntry = { process: processName, error: null, output: null };
+      const searchedPaths = [];
 
-      let foundError = null;
-      let foundOutput = null;
+      for (const type of ['error', 'output']) {
+        let foundPath = null;
 
-      for (const logDir of candidateDirs) {
-        if (foundError && foundOutput) break;
-
-        let files;
-        try {
-          files = await fs.promises.readdir(logDir);
-        } catch {
-          continue;
+        for (const logDir of candidateDirs) {
+          const candidates = CANDIDATE_FILE_NAMES(processName, type);
+          for (const fileName of candidates) {
+            const logPath = path.join(logDir, fileName);
+            searchedPaths.push(logPath);
+            try {
+              await fs.promises.access(logPath, fs.constants.R_OK);
+              foundPath = logPath;
+              break;
+            } catch (accessErr) {
+              if (accessErr.code === 'EACCES') {
+                logger.warn(`PM2 log sin permisos de lectura`, { path: logPath, user: os.userInfo().username, code: 'EACCES' });
+              }
+            }
+          }
+          if (foundPath) break;
         }
 
-        if (!foundError) {
-          const errorMatches = files
-            .filter(f => f.startsWith(`${processName}-`) && f.includes('-error') && f.endsWith('.log'))
-            .sort();
-          if (errorMatches.length > 0) {
-            foundError = { dir: logDir, file: errorMatches[0] };
+        if (foundPath) {
+          try {
+            const stat = await fs.promises.stat(foundPath);
+            const { stdout } = await execFileAsync('tail', ['-n', String(lines), foundPath]);
+            const contentLines = stdout.split('\n').filter(l => l.length > 0);
+            processEntry[type] = { path: foundPath, size: stat.size, lines: contentLines.length, content: stdout };
+          } catch (fileErr) {
+            logger.error(`Error al leer log PM2`, { path: foundPath, error: fileErr.message });
+            processEntry[type] = { path: foundPath, error: fileErr.message };
           }
-        }
-
-        if (!foundOutput) {
-          const outputMatches = files
-            .filter(f => f.startsWith(`${processName}-`) && f.includes('-out') && f.endsWith('.log'))
-            .sort();
-          if (outputMatches.length > 0) {
-            foundOutput = { dir: logDir, file: outputMatches[0] };
-          }
+        } else {
+          logger.info(`PM2 log no encontrado`, { id_aplicacion, process: processName, type, searched: searchedPaths });
+          processEntry[type] = {
+            error: `No se encontró archivo de log ${type} para '${processName}'`,
+            searched: searchedPaths.slice()
+          };
         }
       }
-
-      const readFile = async (found, type) => {
-        if (!found) {
-          return { error: `No se encontró archivo de log ${type} para '${processName}' en los directorios PM2` };
-        }
-        const logPath = path.join(found.dir, found.file);
-        try {
-          const stat = await fs.promises.stat(logPath);
-          const { stdout } = await execFileAsync('tail', ['-n', String(lines), logPath]);
-          const contentLines = stdout.split('\n').filter(l => l.length > 0);
-          return { path: logPath, size: stat.size, lines: contentLines.length, content: stdout };
-        } catch (fileErr) {
-          return { path: logPath, error: fileErr.message };
-        }
-      };
-
-      processEntry.error = await readFile(foundError, 'error');
-      processEntry.output = await readFile(foundOutput, 'output');
 
       result.push(processEntry);
     }
