@@ -1,3 +1,4 @@
+const { isIPv4, isIPv6 } = require('net');
 const LogOperacion = require('../models/LogOperacion');
 const db = require('../config/database');
 
@@ -5,8 +6,9 @@ exports.createLog = async (req, res) => {
   try {
     const { nivel, mensaje, datos } = req.body;
     const id_aplicacion = req.appData.id_aplicacion;
-    const ipv4 = req.ip;
-    const ipv6 = req.headers['x-forwarded-for'] || null;
+    const clientIp = req.ip;
+    const ipv4 = isIPv4(clientIp) ? clientIp : null;
+    const ipv6 = isIPv6(clientIp) ? clientIp : null;
     const user_agent = req.headers['user-agent'] || '';
     const log_id = await LogOperacion.create({
       id_aplicacion,

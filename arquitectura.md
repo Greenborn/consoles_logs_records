@@ -56,6 +56,7 @@ CREATE TABLE aplicaciones_registradas (
     api_key VARCHAR(255) NOT NULL,
     nombre_aplicacion VARCHAR(255) NOT NULL,
     descripcion TEXT,
+    pm2_process_names TEXT NOT NULL DEFAULT '[]',
     activa BOOLEAN DEFAULT TRUE,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -171,6 +172,7 @@ Obtiene los detalles de una aplicación registrada.
         "id_aplicacion": "mi-app",
         "nombre_aplicacion": "Mi Aplicación",
         "descripcion": "Descripción de la aplicación",
+        "pm2_process_names": "[\"mi-app-pm2\"]",
         "activa": true,
         "fecha_creacion": "2024-10-13T10:30:00.000Z"
     }

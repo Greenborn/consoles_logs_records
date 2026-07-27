@@ -6,6 +6,9 @@ const Aplicacion = {
   },
   async findById(id_aplicacion) {
     return db('aplicaciones_registradas').where({ id_aplicacion }).first();
+  },
+  async list() {
+    return db('aplicaciones_registradas').select('*');
   }
 };
 

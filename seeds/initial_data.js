@@ -8,6 +8,7 @@ exports.seed = async function(knex) {
       api_key: 'demo_api_key',
       nombre_aplicacion: 'Aplicación Demo',
       descripcion: 'Aplicación de ejemplo para pruebas',
+      pm2_process_names: '["demo-app"]',
       activa: true
     }
   ]);
