@@ -262,6 +262,63 @@ Obtiene los logs registrados para una aplicación con filtros y paginación.
 }
 ```
 
+### GET /api/applications/:id_aplicacion/pm2-logs
+Obtiene los últimos logs de error de PM2 para los procesos asociados a una aplicación.
+
+**Headers requeridos:**
+- `Authorization: Bearer {API_SECRET}`
+
+**Query params (opcionales):**
+
+| Parámetro | Tipo | Default | Descripción |
+|---|---|---|---|
+| `lines` | int | 50 | Número de líneas por archivo de log (max 500) |
+| `process` | string | — | Filtrar por un nombre específico de proceso PM2 |
+
+**Response 200:**
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "process": "mi-app-pm2",
+            "files": [
+                {
+                    "file": "mi-app-pm2-error.log",
+                    "size": 45123,
+                    "lines": 50,
+                    "content": "[2025-07-27T10:00:00.000Z] Error: conexión rechazada\n..."
+                }
+            ]
+        }
+    ]
+}
+```
+
+**Response 400 (process name inválido):**
+```json
+{
+    "success": false,
+    "error": "El proceso 'inexistente' no está configurado en pm2_process_names de esta aplicación"
+}
+```
+
+**Response 401:**
+```json
+{
+    "success": false,
+    "error": "API Key inválida o ausente"
+}
+```
+
+**Response 404:**
+```json
+{
+    "success": false,
+    "error": "Aplicación no encontrada"
+}
+```
+
 
 ## Estructura del Proyecto
 
